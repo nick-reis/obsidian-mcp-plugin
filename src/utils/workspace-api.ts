@@ -42,7 +42,7 @@ function state(leaf: WorkspaceLeaf) {
 function owned(leaf: WorkspaceLeaf): boolean {
   const expected = managed.get(leaf);
   const actual = state(leaf);
-  return !!expected && ['markdown', 'empty'].includes(actual.type) && !actual.pinned && expected.type === actual.type && expected.path === actual.path;
+  return !!expected && (actual.type === 'empty' || (actual.path !== undefined && actual.type !== 'webviewer')) && !actual.pinned && expected.type === actual.type && expected.path === actual.path;
 }
 
 export async function executeWorkspace(
@@ -111,13 +111,21 @@ export async function executeWorkspace(
     }
 
     let file: TFile | undefined;
+    let expectedType: string | undefined;
     if (action === 'open') {
       if (!options.path) throw new Error('workspace.open requires path.');
       const path = await validate(options.path, false);
       if (!path) throw new Error('Path validation did not return a file path.');
       const candidate = app.vault.getAbstractFileByPath(path);
-      if (!(candidate instanceof TFile) || candidate.extension !== 'md') {
-        throw new Error('workspace.open requires an existing Markdown file.');
+      if (!(candidate instanceof TFile)) {
+        throw new Error('workspace.open requires an existing vault file.');
+      }
+      // Obsidian's extension registry is internal. Fail closed for non-Markdown
+      // files without a registered viewer rather than launching an external app.
+      const registry = (app as App & { viewRegistry?: { getTypeByExtension?: (extension: string) => string | undefined } }).viewRegistry;
+      expectedType = candidate.extension === 'md' ? 'markdown' : registry?.getTypeByExtension?.(candidate.extension);
+      if (!expectedType || expectedType === 'empty' || expectedType === 'webviewer') {
+        throw new Error('No registered in-pane viewer for .' + candidate.extension + ' files.');
       }
       file = candidate;
     }
@@ -125,25 +133,37 @@ export async function executeWorkspace(
     const target = find(options.leafId ?? options.anchorId);
     await checkLeaf(target, true);
     if (options.leafId && !owned(target)) throw new Error('Only unchanged, unpinned MCP-created panes may be reused.');
+    // Splitting or loading a custom viewer can activate its leaf even when
+    // openFile receives active: false. Preserve the previous main pane.
+    const previous = workspace.getMostRecentLeaf();
     const fresh = !options.leafId;
     const leaf = fresh
       ? workspace.createLeafBySplit(target, options.direction === 'down' ? 'horizontal' : 'vertical', false)
       : target;
+    const restoreFocus = () => {
+      // Do not override navigation to a different pane during async loading.
+      if (options.focus !== true && previous && previous !== leaf &&
+          workspace.getMostRecentLeaf() === leaf && leaves().includes(previous)) {
+        workspace.setActiveLeaf(previous, { focus: true });
+      }
+    };
     try {
       if (file) {
         await leaf.openFile(file, { active: options.focus === true });
         const info = state(leaf);
-        if (info.type !== 'markdown' || info.path !== file.path) {
-          throw new Error('The requested Markdown file did not open in the target pane.');
+        if (info.type !== expectedType || info.path !== file.path) {
+          throw new Error('The requested file did not open in its registered viewer in the target pane.');
         }
       }
       const info = state(leaf);
       if (!file && info.type !== 'empty') throw new Error('The new split was not empty; it was left untouched.');
       managed.set(leaf, { type: info.type, path: info.path });
       if (options.focus === true) workspace.setActiveLeaf(leaf, { focus: true });
+      else restoreFocus();
       return { success: true, ...describe(leaf) };
     } catch (error) {
       // Never detach a reused leaf or a new leaf that the user has navigated.
+      restoreFocus();
       if (fresh && state(leaf).type === 'empty' && !state(leaf).pinned) leaf.detach();
       throw error;
     }

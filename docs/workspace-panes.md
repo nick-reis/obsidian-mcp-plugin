@@ -1,7 +1,7 @@
 # Workspace pane management (local extension)
 
-The workspace tool lists the main Obsidian workspace tabs and manages Markdown
-exercise panes. Enable the desired actions individually in the plugin settings
+The workspace tool lists the main Obsidian workspace tabs and manages file
+panes using Obsidian's registered viewers. Enable the desired actions individually in the plugin settings
 under Tool visibility → workspace (open, split, focus and close are opt-in).
 Read-only mode must be off for pane changes.
 
@@ -23,6 +23,7 @@ forgets pane ownership; close leftover panes manually. No arbitrary commands,
 web page contents, full chat URLs or sidebar controls are exposed.
 
 inspect returns the same leaf and tab-group IDs as list (not a full layout
-tree). The active field represents the most recent main-workspace leaf.
-Native Markdown editing is supported; a dedicated source-code editor is not
-included. This extension requires the normal Obsidian minimum app version.
+tree). The active field represents the most recent main-workspace leaf. With focus false (the default), open and split restore the previous main pane if Obsidian activates the target; focus true explicitly activates the target.
+Markdown and other vault files with registered in-pane viewers are supported.
+For source code, install and enable a compatible editor plugin, and ensure the
+file extension is registered. Unsupported extensions are rejected before splitting. This extension requires the normal Obsidian minimum app version.

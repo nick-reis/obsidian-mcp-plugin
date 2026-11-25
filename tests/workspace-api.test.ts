@@ -2,7 +2,7 @@ import { App, TFile } from 'obsidian';
 import { executeWorkspace } from '../src/utils/workspace-api';
 import { createSemanticTools } from '../src/tools/semantic-tools';
 
-function fixture() {
+function fixture({ activateOnSplit = false, activateOnOpen = false }: { activateOnSplit?: boolean; activateOnOpen?: boolean } = {}) {
   const leaves: FakeLeaf[] = [];
   const group = {};
   let current: FakeLeaf;
@@ -14,8 +14,8 @@ function fixture() {
     pinned = false;
     getViewState() { return { type: this.type, state: { file: this.path, url: this.url }, pinned: this.pinned }; }
     async openFile(file: TFile, options: { active: boolean }) {
-      this.type = 'markdown'; this.path = file.path;
-      if (options.active) current = this;
+      this.type = file.extension === 'c' ? 'vscode-editor' : 'markdown'; this.path = file.path;
+      if (options.active || activateOnOpen) current = this;
     }
     detach() { leaves.splice(leaves.indexOf(this), 1); }
   }
@@ -24,7 +24,9 @@ function fixture() {
   chat.url = 'https://chatgpt.com/c/private-conversation?secret=1';
   leaves.push(chat); current = chat;
   const split = jest.fn((_leaf: FakeLeaf, _direction: string, _before: boolean) => {
-    const leaf = new FakeLeaf(); leaves.push(leaf); return leaf;
+    const leaf = new FakeLeaf(); leaves.push(leaf);
+    if (activateOnSplit) current = leaf;
+    return leaf;
   });
   const app = {
     workspace: {
@@ -33,10 +35,11 @@ function fixture() {
       createLeafBySplit: split,
       setActiveLeaf: (leaf: FakeLeaf) => { current = leaf; },
     },
+    viewRegistry: { getTypeByExtension: (extension: string) => extension === 'c' ? 'vscode-editor' : undefined },
     vault: { getAbstractFileByPath: (path: string) => {
-      if (!['exercise.md', 'next.md', 'hidden.md'].includes(path)) return null;
+      if (!['exercise.md', 'next.md', 'hidden.md', 'exercise.c', 'unsupported.xyz'].includes(path)) return null;
       const file = new TFile();
-      Object.assign(file, { path, extension: 'md' });
+      Object.assign(file, { path, extension: path.split('.').pop() });
       return file;
     } }
   } as unknown as App;
@@ -79,11 +82,53 @@ describe('workspace pane lifecycle', () => {
   it('does not create a split for invalid or denied files', async () => {
     const { app, run, split } = fixture();
     const anchorId = (await run('list')).leaves[0].leafId;
-    await expect(run('open', { anchorId, path: 'missing.md' })).rejects.toThrow('existing Markdown');
+    await expect(run('open', { anchorId, path: 'missing.md' })).rejects.toThrow('existing vault file');
     await expect(executeWorkspace(app, 'open', { anchorId, path: 'hidden.md' }, async path => {
       if (path === 'hidden.md') throw new Error('denied');
       return path;
     })).rejects.toThrow('denied');
+    expect(split).not.toHaveBeenCalled();
+  });
+
+  it('opens, reuses and closes a registered code viewer without replacing chat', async () => {
+    const { run, chat, split, leaves } = fixture();
+    const anchorId = (await run('list')).leaves[0].leafId;
+    const opened = await run('open', { anchorId, path: 'exercise.c' });
+    expect(opened).toMatchObject({ type: 'vscode-editor', path: 'exercise.c', managed: true, active: false });
+    expect(split).toHaveBeenCalledWith(chat, 'vertical', false);
+    leaves[1].pinned = true;
+    await expect(run('close', { leafId: opened.leafId })).rejects.toThrow('unpinned');
+    leaves[1].pinned = false;
+    const reused = await run('open', { leafId: opened.leafId, path: 'next.md' });
+    expect(reused).toMatchObject({ leafId: opened.leafId, type: 'markdown', managed: true });
+    await run('close', { leafId: opened.leafId });
+    expect(leaves).toEqual([chat]);
+  });
+
+  it('restores previous pane when splitting or a custom viewer activates the new pane', async () => {
+    const { run } = fixture({ activateOnSplit: true, activateOnOpen: true });
+    const anchorId = (await run('list')).leaves[0].leafId;
+    const opened = await run('open', { anchorId, path: 'exercise.c', focus: false });
+    expect(opened.active).toBe(false);
+    expect((await run('list')).leaves.find((leaf: any) => leaf.active).leafId).toBe(anchorId);
+    const reused = await run('open', { leafId: opened.leafId, path: 'next.md', focus: false });
+    expect(reused.active).toBe(false);
+    const focused = await run('open', { leafId: opened.leafId, path: 'exercise.c', focus: true });
+    expect(focused.active).toBe(true);
+  });
+
+  it('keeps the previous pane active when creating an empty split', async () => {
+    const { run } = fixture({ activateOnSplit: true });
+    const anchorId = (await run('list')).leaves[0].leafId;
+    const opened = await run('split', { anchorId, focus: false });
+    expect(opened.active).toBe(false);
+    expect((await run('list')).leaves.find((leaf: any) => leaf.active).leafId).toBe(anchorId);
+  });
+
+  it('rejects unsupported extensions before splitting', async () => {
+    const { run, split } = fixture();
+    const anchorId = (await run('list')).leaves[0].leafId;
+    await expect(run('open', { anchorId, path: 'unsupported.xyz' })).rejects.toThrow('No registered in-pane viewer');
     expect(split).not.toHaveBeenCalled();
   });
 
