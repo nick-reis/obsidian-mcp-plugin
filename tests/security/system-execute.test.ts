@@ -201,8 +201,10 @@ const noticeMessages = () => noticeSpy.mock.calls.map(args => String(args[0]));
 
 describe('system.execute', () => {
   describe('gate 1: opt-in enumeration', () => {
-    it('is the one opt-in action', () => {
-      expect([...OPT_IN_ACTIONS]).toEqual(['system.execute']);
+    it('keeps command execution and workspace mutations explicitly opt-in', () => {
+      expect([...OPT_IN_ACTIONS]).toEqual([
+        'system.execute', 'workspace.open', 'workspace.split', 'workspace.focus', 'workspace.close',
+      ]);
     });
 
     it.each([

@@ -70,6 +70,12 @@ const ACTION_KIND: Record<string, 'read' | 'write' | 'execute'> = {
   'view.window': 'read',
   'view.active': 'read',
   'view.open_in_obsidian': 'read',
+  'workspace.list': 'read',
+  'workspace.inspect': 'read',
+  'workspace.open': 'execute',
+  'workspace.split': 'execute',
+  'workspace.focus': 'execute',
+  'workspace.close': 'execute',
   // workflow / system
   'workflow.suggest': 'read',
   'system.info': 'read',
@@ -316,7 +322,7 @@ describe('read-only enforcement — exhaustive action matrix', () => {
   const executeActions = allActions.filter(a => ACTION_KIND[a.key] === 'execute' && invocable(a.op));
 
   it('records which shipped actions map to execute', () => {
-    expect(executeActions.map(a => a.key)).toEqual(['system.execute']);
+    expect(executeActions.map(a => a.key)).toEqual(['workspace.open', 'workspace.split', 'workspace.focus', 'workspace.close', 'system.execute']);
   });
 
   describe.each(executeActions)('$key (execute)', ({ op, action, key }) => {

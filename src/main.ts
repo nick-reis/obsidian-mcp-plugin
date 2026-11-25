@@ -1186,7 +1186,9 @@ class MCPSettingTab extends PluginSettingTab {
 					...actions.map((action): SettingDefinition => ({
 						name: `${operation}.${action}`,
 						desc: OPT_IN_ACTIONS.has(`${operation}.${action}`)
-							? 'Off until you turn it on here. Commands also need to be on the allowlist under Security → Command execution.'
+							? operation === 'workspace'
+								? 'Off until you turn it on here. Pane changes require read-only mode to be off.'
+								: 'Off until you turn it on here. Commands also need to be on the allowlist under Security → Command execution.'
 							: undefined,
 						// A row that also governs a deprecated name is findable by it.
 						aliases: visibilityKeysFor(operation, action).slice(1),
@@ -1695,6 +1697,7 @@ class MCPSettingTab extends PluginSettingTab {
 			{ name: 'vault', emoji: '🗂️', desc: 'File and folder operations with fragment support', available: true },
 			{ name: 'edit', emoji: '✏️', desc: 'Smart editing with content buffers', available: true },
 			{ name: 'view', emoji: '👁️', desc: 'Content viewing and navigation', available: true },
+			{ name: 'workspace', emoji: '🪟', desc: 'Workspace pane management', available: true },
 			{ name: 'workflow', emoji: '🔄', desc: 'AI workflow guidance and suggestions', available: true },
 			{ name: 'graph', emoji: '🕸️', desc: 'Graph traversal and link analysis', available: true },
 			{ name: 'system', emoji: '⚙️', desc: 'System operations and web fetch', available: true },

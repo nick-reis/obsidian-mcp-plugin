@@ -22,6 +22,7 @@ import { executeVaultOperation } from './operations/vault';
 import { executeBasesOperation } from './operations/bases';
 import { executeEditOperation } from './operations/edit';
 import { executeViewOperation } from './operations/view';
+import { executeWorkspaceOperation } from './operations/workspace';
 import { executeSystemOperation } from './operations/system';
 import { executeGraphOperation } from './operations/graph';
 import { executeWorkflowOperation } from './operations/workflow';
@@ -119,6 +120,8 @@ export class SemanticRouter implements RouterContext {
         return executeEditOperation(this, action, params);
       case 'view':
         return executeViewOperation(this, action, params);
+      case 'workspace':
+        return executeWorkspaceOperation(this, action, params);
       case 'workflow':
         return executeWorkflowOperation(this, action, params);
       case 'system':

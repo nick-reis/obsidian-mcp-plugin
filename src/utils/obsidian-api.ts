@@ -86,6 +86,8 @@ interface FileDetailObject {
   modified?: number;
 }
 
+import { executeWorkspace, WorkspaceOptions, WorkspaceValidate } from './workspace-api';
+
 export class ObsidianAPI {
   private app: App;
   private config: ObsidianConfig;
@@ -981,6 +983,10 @@ export class ObsidianAPI {
     }
 
     return response;
+  }
+
+  async workspaceAction(action: string, options: WorkspaceOptions, validate?: WorkspaceValidate): Promise<unknown> {
+    return executeWorkspace(this.app, action, options, validate);
   }
 
   // Obsidian integration

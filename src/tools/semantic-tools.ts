@@ -221,7 +221,7 @@ const VISIBILITY_ALIASES: Record<string, readonly string[]> = {
  * registration gate, the dispatch re-check and the settings tree all honour
  * this set.
  */
-export const OPT_IN_ACTIONS: ReadonlySet<string> = new Set(['system.execute']);
+export const OPT_IN_ACTIONS: ReadonlySet<string> = new Set(['system.execute', 'workspace.open', 'workspace.split', 'workspace.focus', 'workspace.close']);
 
 /** Every visibility key that governs `operation.action`, its own key first. */
 export function visibilityKeysFor(operation: string, action: string): string[] {
@@ -649,6 +649,7 @@ export function getOperationDescription(operation: string): string {
     vault: '📁 File operations - list, read, create, replace (replaces the entire file; for partial edits use the edit tool), delete, search, fragments, move, rename, copy, split, combine, concatenate. `update` is a deprecated alias of replace. Search supports: operators (file:, path:, content:, tag:), OR/AND, "quoted phrases", /regex/. Options: ranked=true for TF-IDF relevance scoring, searchStrategy (filename|content|combined|auto), includeSnippets for contextual extracts. Search matches words, not meaning — it will miss notes that cover a topic in different vocabulary, and its scores are term frequency, so a low-scoring hit is NOT necessarily unimportant (do not prune on score). Prefer a couple of BROAD scans over many narrow ones, then follow links from the hits with `graph.neighbors` to reach what search cannot rank.',
     edit: '✏️ Edit files - window: find/replace with fuzzy matching, append: add to end, patch: modify headings/blocks/frontmatter or replace exact text, at_line: insert at line number, from_buffer: reuse previous window content',
     view: '👁️ View content - file: entire document, window: ~20 lines around point, active: current editor file, open_in_obsidian: launch in app',
+    workspace: '🪟 Workspace panes - list or inspect main tabs and group IDs; open a Markdown note in a new split relative to anchorId or reuse a managed leafId; split right/down; focus a leaf; close only an unchanged MCP-created leaf. Never replace the chat tab. Web viewer origins are provided when available.',
     workflow: '💡 Get contextual suggestions for next actions based on current state',
     system: describeSystem(getActionsForOperation('system')),
     graph: '🕸️ Graph navigation — follow the vault\'s own links. Use this to EXPAND from a note you already found rather than running another search: search ranks by term frequency, so it cannot reach a note that covers the topic in different words, but a link to it usually exists. BLIND SPOT (the mirror of search\'s): traversal only reaches what someone actually linked. A note can be genuinely relevant and simply unlinked — no amount of traversal will find it. So the two are complements, not substitutes: scan broadly with `vault.search` to catch the unlinked, then follow links from the hits to catch the differently-worded. Trust neither alone. Actions — neighbors: immediate links of a note (start here); traverse: multi-hop exploration; search-traverse: scan-and-follow in one call, but it returns SNIPPETS per node and prunes on scoreThreshold, so use it to discover WHICH notes matter, then read them — do not treat its snippets as the whole argument; path: how two notes connect; backlinks/forwardlinks: directional links (backlinks are how you find what depends on a note — its own text does not know); statistics: link counts (call with no sourcePath for vault-wide density); tag-analysis/shared-tags: tag structure.',
@@ -675,6 +676,7 @@ export function getActionsForOperation(operation: string): string[] {
     vault: ['list', 'read', 'create', 'replace', 'update', 'delete', 'search', 'fragments', 'move', 'rename', 'copy', 'split', 'combine', 'concatenate'],
     edit: ['window', 'append', 'patch', 'at_line', 'from_buffer'],
     view: ['file', 'window', 'active', 'open_in_obsidian'],
+    workspace: ['list', 'inspect', 'open', 'split', 'focus', 'close'],
     workflow: ['suggest'],
     system: ['info', 'commands', 'fetch_web', 'execute'],
     graph: ['traverse', 'neighbors', 'path', 'statistics', 'backlinks', 'forwardlinks', 'search-traverse', 'advanced-traverse', 'tag-traverse', 'tag-analysis', 'shared-tags'],
@@ -892,6 +894,13 @@ function getParametersForOperation(operation: string): Record<string, unknown> {
         default: 20
       }
     },
+    workspace: {
+      ...pathParam,
+      leafId: { type: 'string', description: 'Leaf ID from workspace.list; reuse, focus or close' },
+      anchorId: { type: 'string', description: 'Anchor leaf ID for a new split; never replaced' },
+      direction: { type: 'string', enum: ['right', 'down'], description: 'Split direction (default right)' },
+      focus: { type: 'boolean', description: 'Focus the new or reused pane (default false)' }
+    },
     workflow: {
       type: {
         type: 'string',
@@ -1078,7 +1087,7 @@ function getParametersForOperation(operation: string): Record<string, unknown> {
  * Create semantic tools array with optional Dataview support
  */
 export function createSemanticTools(api?: ObsidianAPI, visibility?: ToolVisibility, webFetchEnabled?: boolean): SemanticTool[] {
-  const operations = ['vault', 'edit', 'view', 'workflow', 'system', 'graph', 'bases'];
+  const operations = ['vault', 'edit', 'view', 'workspace', 'workflow', 'system', 'graph', 'bases'];
 
   // Add Dataview if available
   if (api && isDataviewToolAvailable(api)) {
@@ -1092,7 +1101,7 @@ export function createSemanticTools(api?: ObsidianAPI, visibility?: ToolVisibili
 }
 
 /** All operation group names (for UI enumeration) */
-export const ALL_OPERATIONS = ['vault', 'edit', 'view', 'workflow', 'system', 'graph', 'bases', 'dataview'] as const;
+export const ALL_OPERATIONS = ['vault', 'edit', 'view', 'workspace', 'workflow', 'system', 'graph', 'bases', 'dataview'] as const;
 
 // Export the base semantic tools (for backward compatibility, no visibility filtering)
 // There is deliberately no exported module-level tool list.

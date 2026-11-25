@@ -597,6 +597,15 @@ export function formatResponse(
       case 'vault.concatenate':
         return formatFileCombine(normalized as FileCombineResponse);
 
+      // Workspace IDs are opaque; preserve them verbatim.
+      case 'workspace.list':
+      case 'workspace.inspect':
+      case 'workspace.open':
+      case 'workspace.split':
+      case 'workspace.focus':
+      case 'workspace.close':
+        return JSON.stringify(response, null, 2);
+
       // View operations
       case 'view.file':
         return formatViewFile(normalized as ViewFileResponse);

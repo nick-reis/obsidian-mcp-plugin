@@ -1,4 +1,5 @@
 import { App } from 'obsidian';
+import { WorkspaceOptions } from '../utils/workspace-api';
 import { ObsidianAPI, PatchParams } from '../utils/obsidian-api';
 import {
 	VaultSecurityManager,
@@ -309,6 +310,17 @@ export class SecureObsidianAPI extends ObsidianAPI {
 	async deleteActiveFile(): ReturnType<ObsidianAPI['deleteActiveFile']> {
 		await this.validateActiveFile(OperationType.DELETE, 'deleteActiveFile');
 		return super.deleteActiveFile();
+	}
+
+	async workspaceAction(action: string, options: WorkspaceOptions): Promise<unknown> {
+		return super.workspaceAction(action, options, async (path, mutation) => {
+			const validated = await this.security.validateOperation({
+				type: mutation ? OperationType.EXECUTE : OperationType.READ,
+				...(path !== undefined ? { path } : {}),
+				context: { method: 'workspaceAction', action }
+			});
+			return validated.path;
+		});
 	}
 
 	// File Operations - OPEN
